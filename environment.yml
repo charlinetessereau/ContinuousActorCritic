@@ -1,0 +1,14 @@
+name: actor_critic
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy
+  - scipy
+  - h5py
+  - matplotlib
+  - seaborn
+  - jupyter
+  - pip
+  - pip:
+    - ipykernel
