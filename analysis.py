@@ -25,7 +25,7 @@ def load_results(filename):
 def plot_learning_curve(filename, save_path=None):
     """Plot learning curve showing mean latency across rats with error bars."""
     # Set style
-    plt.style.use('seaborn')
+    sns.set_style("whitegrid")
     
     # Load data
     latencies = load_results(filename)
@@ -41,8 +41,7 @@ def plot_learning_curve(filename, save_path=None):
     # Plot mean latency with error bars
     trials = np.arange(1, num_trials + 1)
     ax.plot(trials, mean_latencies, '-', color='darkgreen', linewidth=2, label='Mean Latency')
-    ax.errorbar(trials, mean_latencies, yerr=sem_latencies, fmt='o', color='black', 
-                capsize=5, capthick=1, elinewidth=1)
+    ax.errorbar(trials, mean_latencies, yerr=sem_latencies, fmt='o', color='black', capsize=5, capthick=1, elinewidth=1)
     
     # Customize axes
     ax.spines['top'].set_visible(False)

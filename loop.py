@@ -7,18 +7,30 @@ for spatial navigation using place cells.
 HDF5 Data Structure:
 -------------------
 results.h5
-├── rat_0/                      # Group for first rat
-│   ├── trial_0/               # Group for first trial
-│   │   ├── trajectories       # Dataset: (n_steps, 2) array of positions
-│   │   ├── actions           # Dataset: (n_steps,) array of chosen actions
-│   │   ├── rewards           # Dataset: (n_steps,) array of rewards
-│   │   ├── td_errors         # Dataset: (n_steps,) array of TD errors
-│   │   ├── latency           # Attribute: time to find platform
-│   │   └── platform          # Attribute: (x,y) platform position
-│   ├── trial_1/
-│   └── ...
-├── rat_1/
-└── ...
+├── parameters/                 # Group for all parameters
+│   ├── env/                   # Environment parameters
+│   ├── pc/                    # Place cell parameters
+│   └── ...                    # Other parameter categories
+├── features/                  # Group for features
+│   ├── num_rats              # Number of rats
+│   └── num_trials            # Number of trials per rat
+└── results/                  # Group for all experimental results
+    ├── rat_0/                # Group for first rat
+    │   ├── platform          # Attribute: (x,y) platform position
+    │   ├── trial_0/          # Group for first trial
+    │   │   ├── trajectories  # Dataset: (n_steps, 2) array of positions
+    │   │   ├── actions       # Dataset: (n_steps,) array of chosen actions
+    │   │   ├── rewards       # Dataset: (n_steps,) array of rewards
+    │   │   ├── td_errors     # Dataset: (n_steps,) array of TD errors
+    │   │   ├── initial_actor_weights   # Dataset: Actor weights at start
+    │   │   ├── initial_critic_weights  # Dataset: Critic weights at start
+    │   │   ├── final_actor_weights     # Dataset: Actor weights at end
+    │   │   ├── final_critic_weights    # Dataset: Critic weights at end
+    │   │   └── latency       # Attribute: time to find platform
+    │   ├── trial_1/
+    │   └── ...
+    ├── rat_1/
+    └── ...
 
 The HDF5 file structure allows for efficient storage and access of:
 - Complete trajectories for each trial
@@ -32,13 +44,18 @@ import numpy as np
 from scipy.integrate import solve_ivp
 import json
 import h5py
+from functions import calculate_place_cell_activity
 
 # Define core functions
 
 def placecells(position, params):
     """Compute place cell activity for given position."""
-    diffs = np.expand_dims(position, axis=1) - params['pc']['centres']
-    return params['pc']['amplitude'] * np.exp(-np.sum(diffs ** 2, axis=0) / (2 * params['pc']['sigma'] ** 2))
+    return calculate_place_cell_activity(
+        position, 
+        params['pc']['centres'],
+        params['pc']['amplitude'],
+        params['pc']['sigma']
+    )
 
 def activation_function(ua, params):
     """Compute activation function (sigmoid) for actor network.
@@ -63,51 +80,80 @@ def generate_noise_input(ua, input_pc, params):
     # Find indices of maximum values
     max_indices = np.where(ua == np.max(ua))[0]
     
-    if len(max_indices) == len(ua):  # No clear preference yet
-        centre_n = np.random.randint(params['actor']['num_actions'])
-    else:
-        index_max = max_indices[0]  # Take first maximum if multiple exist
+    if len(max_indices) == 1:  # Clear preference exists
+        index_max = max_indices[0]
         scale_deviation = np.max(input_pc) - np.min(input_pc)
         if scale_deviation == 0:
             scale_deviation = 1
+            
+        # Generate probability distribution for noise center
+        centre_prob_centre = int(np.mod(
+            index_max + np.floor(np.random.choice([-1, 1]) * params['noise']['mu'] / scale_deviation * params['actor']['num_actions']),
+            params['actor']['num_actions']
+        ))
         
-        # Compute noise center
-        noise_shift = int(np.random.choice([-1, 1]) * params['noise']['mu'] / scale_deviation * params['actor']['num_actions'])
-        centre_n = int((index_max + noise_shift) % params['actor']['num_actions'])
+        # Generate weights for sampling noise center
+        width_prob_centre = params['actor']['num_actions'] * params['noise']['sigma'] / scale_deviation
+        prob_centre = np.array([
+            np.exp(-(centre_prob_centre - k)**2 / (2 * width_prob_centre**2))
+            for k in range(params['actor']['num_actions'])
+        ])
+        
+        # Sample center from probability distribution
+        centre_n = np.random.choice(params['actor']['num_actions'], p=prob_centre/np.sum(prob_centre))
+    else:
+        # No clear preference yet - choose random center
+        centre_n = np.random.randint(params['actor']['num_actions'])
     
     # Generate noise distribution
     angles = np.linspace(0, 2*np.pi, params['actor']['num_actions'], endpoint=False)
     scale_deviation = max(np.max(input_pc) - np.min(input_pc), 1e-6)
     rho_n = params['noise']['rho'] / scale_deviation
     
-    # Compute angular differences
-    angle_diffs = np.minimum(
-        np.abs(angles - angles[centre_n]),
-        2*np.pi - np.abs(angles - angles[centre_n])
-    )
+    # Compute noise using sine-based angular differences (matching Julia implementation)
+    rand_noise = np.array([
+        rho_n * np.exp(-np.sin((angles[k] - angles[centre_n])/2)**2 / (2 * params['noise']['width']**2))
+        for k in range(params['actor']['num_actions'])
+    ])
     
-    return rho_n * np.exp(-angle_diffs**2 / (2 * params['noise']['width']**2))
+    return rand_noise
 
 def actor_activity_double_dyn(ua, va, input_pc, input_noise, params):
-    """Update actor network activity."""
+    """Update actor network activity using double dynamics."""
     dt = params['env']['dt']
     tau_m = params['actor']['tau_m']
     tau_s = params['actor']['tau_s']
     
+    # Update membrane potential
     dua = (dt / tau_m) * (va - ua) + ua
-    dva = (va * (1 - dt / tau_s) + 
-           (params['actor']['epsilon_aa'] * dt / tau_s) * np.dot(params['actor']['coupled_aw'], activation_function(ua, params)) +
-           (dt / tau_s) * params['learning']['epsilon_pca'] * input_pc +
-           (dt / tau_s) * input_noise)
+    
+    # Update synaptic current
+    dva = (va * (1 - dt/tau_s) + 
+           (params['actor']['epsilon_aa'] * dt/tau_s) * np.dot(params['actor']['coupled_aw'], activation_function(ua, params)) +
+           (dt/tau_s) * params['learning']['epsilon_pca'] * input_pc +
+           (dt/tau_s) * input_noise)
+    # plt.plot((dt/tau_s) * input_noise,'y')
+    # plt.plot((dt/tau_s) * params['learning']['epsilon_pca'] * input_pc,'g')
+    # plt.plot((params['actor']['epsilon_aa'] * dt/tau_s) * np.dot(params['actor']['coupled_aw'], activation_function(ua, params)),'r')
+    # plt.plot(va * (1 - dt/tau_s),'b')
+    #plt.plot(activation_function(ua, params),'r')
+    #plt.plot(np.dot(params['actor']['coupled_aw'], activation_function(ua, params)),'g')
+    #plt.plot(ua,'k')
+    
     return dua, dva
 
 def critic_activity_double_dyn(uc, vc, input_pc, params):
-    """Update critic network activity."""
+    """Update critic network activity using double dynamics."""
     dt = params['env']['dt']
     tau_m = params['critic']['tau_m']
     tau_s = params['critic']['tau_s']
+    
+    # Update membrane potential
     duc = (dt / tau_m) * (vc - uc) + uc
-    dvc = vc * (1 - dt / tau_s) + (params['learning']['epsilon_pcc'] * dt / tau_s) * input_pc
+    
+    # Update synaptic current
+    dvc = vc * (1 - dt/tau_s) + (params['learning']['epsilon_pcc'] * dt/tau_s) * input_pc
+    
     return duc, dvc
 
 def reward_function(x, y, xp, yp, hit_wall, ra, rb, params):
@@ -136,16 +182,36 @@ def reward_function(x, y, xp, yp, hit_wall, ra, rb, params):
     
     return new_ra, new_rb, re, found_goal
 
-def update_position(position, action, params):
-    """Update position based on chosen action."""
+def choose_action(ua, params):
+    """Compute movement direction as weighted sum of all action directions."""
+    # Get normalized weights using softmax
+    ua_shifted = ua - np.max(ua)
+    exp_ua = np.exp(ua_shifted)
+    weights = exp_ua / np.sum(exp_ua)
+    
+    # Compute weighted sum of direction vectors
+    direction = np.dot(weights, params['actor']['directions'])
+    
+    # Normalize direction vector if not zero
+    norm = np.linalg.norm(direction)
+    if norm > 0:
+        direction = direction / norm
+        
+    # Convert to angle in degrees for consistency with rest of code
+    angle = np.rad2deg(np.arctan2(direction[1], direction[0])) % 360
+    return angle, direction
+
+def update_position(position, action_data, params):
+    """Update position based on chosen action direction vector."""
     dt = params['env']['dt']
     speed = params['env']['speed']
     arena_radius = params['env']['arena_radius']
     
-    angle_rad = np.deg2rad(action)
-    dx = speed * np.cos(angle_rad) * dt
-    dy = speed * np.sin(angle_rad) * dt
-    new_pos = position + np.array([dx, dy])
+    # Unpack action data
+    angle, direction = action_data
+    
+    # Update position using direction vector
+    new_pos = position + speed * dt * direction
     
     # Check wall collisions
     hit_wall = False
@@ -155,37 +221,64 @@ def update_position(position, action, params):
     
     return new_pos, hit_wall
 
-def choose_action(ua):
-    """Choose action based on actor output using softmax."""
-    # Ensure numerical stability by subtracting max
-    ua_shifted = ua - np.max(ua)
-    exp_ua = np.exp(ua_shifted)
-    probs = exp_ua / np.sum(exp_ua)
-    return np.random.choice(len(ua), p=probs)
-
 def experiment(params, features, save_path):
     """Run the experiment and save results."""
     with h5py.File(save_path, 'w') as f:
+        # Save parameters and features at top level
+        param_group = f.create_group('parameters')
+        for category, values in params.items():
+            param_subgroup = param_group.create_group(category)
+            for key, value in values.items():
+                if isinstance(value, np.ndarray):
+                    param_subgroup.create_dataset(key, data=value)
+                else:
+                    param_subgroup.attrs[key] = value
+
+        feature_group = f.create_group('features')
+        for key, value in features.items():
+            feature_group.attrs[key] = value
+
+        # Create results group for all rats
+        results_group = f.create_group('results')
+        
         for rat in range(features['num_rats']):
-            rat_group = f.create_group(f'rat_{rat}')
+            rat_group = results_group.create_group(f'rat_{rat}')
+            
+            # Initialize weights for this rat
             aw = params['actor']['init_weights'].copy()
             cw = params['critic']['init_weights'].copy()
+            
+            # Select and store platform position once per rat
+            xp, yp = params['env']['platform_positions'][np.random.randint(len(params['env']['platform_positions']))]
+            rat_group.attrs['platform'] = [xp, yp]
             
             for trial in range(features['num_trials']):
                 trial_group = rat_group.create_group(f'trial_{trial}')
                 
-                # Initialize state
+                # Save initial weights for this trial
+                trial_group.create_dataset('initial_actor_weights', data=aw)
+                trial_group.create_dataset('initial_critic_weights', data=cw)
+                
+                # Initialize state variables
                 position = np.array(params['env']['start_positions'][np.random.randint(len(params['env']['start_positions']))])
-                xp, yp = params['env']['platform_positions'][np.random.randint(len(params['env']['platform_positions']))]
                 ua = np.zeros(params['actor']['num_actions'])
                 va = np.zeros(params['actor']['num_actions'])
                 uc = np.zeros(1)
                 vc = np.zeros(1)
-                ra = rb = 0  # Initialize reward dynamics
+                ra = rb = 0
                 input_noise = np.zeros(params['actor']['num_actions'])
                 
-                # Create datasets
-                max_steps = int((params['env']['max_trial_time'] + params['env']['reward_window']) / params['env']['dt'])
+                # For visualization, store additional data for first and last trial
+                store_viz_data = trial in [0, features['num_trials']-1]
+                if store_viz_data:
+                    history_ua = []
+                    history_input_pc = []
+                    history_input_noise = []
+                
+                # Create datasets with correct size including reward window
+                total_time = params['env']['max_trial_time'] + params['env']['reward_window']
+                max_steps = int(total_time / params['env']['dt']) + 10  # Add more buffer steps
+                
                 trajectories = np.zeros((max_steps, 2))
                 actions = np.zeros(max_steps)
                 rewards = np.zeros(max_steps)
@@ -197,31 +290,44 @@ def experiment(params, features, save_path):
                 timeout = False
                 found_goal = False
                 
-                while t < params['env']['max_trial_time'] and not found_goal:
+                # Main trial loop
+                while t < params['env']['max_trial_time'] and not found_goal and step < max_steps - 1:
+                    # Check if time is up - place agent on platform
+                    if np.isclose(t, params['env']['max_trial_time']):
+                        position = np.array([xp, yp])
+                        timeout = True
+                        found_goal = True
+                    
+                    # Only process actor dynamics if we haven't timed out
+                    if not timeout:
+                        # Compute place cell activity
+                        pc_activity = placecells(position, params)
+                        
+                        # Actor dynamics
+                        input_pc = np.dot(aw.T, pc_activity)
+                        rand_noise = generate_noise_input(ua, input_pc, params)
+                        input_noise = noise_dynamics(input_noise, rand_noise, params)
+                        
+                        ua, va = actor_activity_double_dyn(ua, va, input_pc, input_noise, params)
+                        
+                        # Choose action and update position
+                        action_data = choose_action(ua, params)  # Now returns (angle, direction)
+                        new_position, hit_wall = update_position(position, action_data, params)
+                        position = new_position
+                    
                     # Store current state
                     trajectories[step] = position
                     
-                    # Compute place cell activity
-                    pc_activity = placecells(position, params)
-                    
-                    # Actor dynamics
-                    input_pc = np.dot(aw.T, pc_activity)
-                    rand_noise = generate_noise_input(ua, input_pc, params)
-                    input_noise = noise_dynamics(input_noise, rand_noise, params)
-                    
-                    ua, va = actor_activity_double_dyn(ua, va, input_pc, input_noise, params)
-                    
-                    # Choose action and update position
-                    action = choose_action(activation_function(ua, params))  # First compute activation, then choose action
-                    new_position, hit_wall = update_position(position, action * 2, params)
-                    
                     # Compute reward
                     ra, rb, re, found_goal = reward_function(
-                        new_position[0], new_position[1], xp, yp, hit_wall, ra, rb, params
+                        position[0], position[1], xp, yp, hit_wall, ra, rb, params
                     )
+                    # print(hit_wall,ra,rb,re,found_goal)
+                    # if hit_wall==True:
+                    #     break
                     
                     # Critic dynamics
-                    g = np.dot(cw.T, placecells(new_position, params))[0]
+                    g = np.dot(cw.T, placecells(position, params))[0]
                     td_error = compute_td_error(re, uc[0], g, previous_g, params)
                     
                     # Update weights
@@ -235,29 +341,75 @@ def experiment(params, features, save_path):
                           params['learning']['epsilon_pcc'] * 
                           pc_activity.reshape(-1, 1))
                     
-                    # Store data
-                    actions[step] = action
+                    # Store data and update state
+                    actions[step] = action_data[0] if not timeout else 0  # Store angle in degrees
                     rewards[step] = re
                     td_errors[step] = td_error
-                    
-                    # Update state
-                    position = new_position
                     previous_g = g
                     t += params['env']['dt']
                     step += 1
-                
-                # Trim datasets
+
+                    if store_viz_data:
+                        history_ua.append(ua.copy())
+                        history_input_pc.append(input_pc.copy())
+                        history_input_noise.append(input_noise.copy())
+
+                # Post-trial reward learning period
+                reward_window = t + params['env']['reward_window']
+                while t < reward_window and step < max_steps - 1:  # Added bounds check
+                    # Compute reward and critic updates during reward window
+                    ra, rb, re, _ = reward_function(
+                        position[0], position[1], xp, yp, False, ra, rb, params
+                    )
+                    # print(ra,rb,re)
+                    
+                    pc_activity = placecells(position, params)
+                    g = np.dot(cw.T, pc_activity)[0]
+                    td_error = compute_td_error(re, uc[0], g, previous_g, params)
+                    
+                    # Update weights (actor only updated if goal was found naturally)
+                    if not timeout:
+                        aw += (params['learning']['actor_lr'] * params['env']['dt'] * 
+                              td_error * params['learning']['epsilon_pca'] * 
+                              np.outer(pc_activity, ua))
+                    
+                    cw += (params['learning']['critic_lr'] * params['env']['dt'] * 
+                          td_error * params['critic']['nu'] * 
+                          params['learning']['epsilon_pcc'] * 
+                          pc_activity.reshape(-1, 1))
+                    
+                    # Store data
+                    trajectories[step] = position
+                    actions[step] = 0
+                    rewards[step] = re
+                    td_errors[step] = td_error
+                    
+                    previous_g = g
+                    t += params['env']['dt']
+                    step += 1
+
+                # Trim datasets to actual size used
+                actual_steps = min(step, max_steps - 1)  # Ensure we don't exceed array bounds
                 for name, data in [
-                    ('trajectories', trajectories),
-                    ('actions', actions),
-                    ('rewards', rewards),
-                    ('td_errors', td_errors)
+                    ('trajectories', trajectories[:actual_steps]),
+                    ('actions', actions[:actual_steps]),
+                    ('rewards', rewards[:actual_steps]),
+                    ('td_errors', td_errors[:actual_steps])
                 ]:
-                    trial_group.create_dataset(name, data=data[:step])
+                    trial_group.create_dataset(name, data=data)
                 
-                # Store metadata
+                # Store metadata (removed platform position)
                 trial_group.attrs['latency'] = t
-                trial_group.attrs['platform'] = [xp, yp]
+
+                # After trial ends, save final weights
+                trial_group.create_dataset('final_actor_weights', data=aw)
+                trial_group.create_dataset('final_critic_weights', data=cw)
+
+                # Save visualization data if needed
+                if store_viz_data:
+                    trial_group.create_dataset('history_ua', data=np.array(history_ua))
+                    trial_group.create_dataset('history_input_pc', data=np.array(history_input_pc))
+                    trial_group.create_dataset('history_input_noise', data=np.array(history_input_noise))
 
 # Example usage
 def initialize_parameters():
@@ -283,7 +435,7 @@ def initialize_parameters():
         'goal_radius': 5,       # Radius of goal zone (cm)
         'speed': 30,            # Movement speed (cm/s)
         'max_trial_time': 120,  # Maximum trial duration (s)
-        'reward_window': 0.5,   # Time window for reward computation after finding goal (s)
+        'reward_window': 2,   # Time window for reward computation after finding goal (s)
         'dt': dt,               # Time step (s)
         # Starting positions (cm) - East, North, West, South
         'start_positions': [[95, 0], [0, 95], [-95, 0], [0, -95]],
@@ -311,7 +463,7 @@ def initialize_parameters():
         'centres': centres,        # Place cell centers (cm)
         'sigma': 30,              # Place field width (cm)
         'amplitude': 1,           # Maximum firing rate (Hz)
-        'epsilon_pc': 0.1         # Place cell input weight
+        'epsilon_pc': 1         # Place cell input weight
     }
     
     ###################
@@ -341,8 +493,8 @@ def initialize_parameters():
         'rho': 0.5,                 # Activation function gain
         'beta': 5,                  # Activation function steepness
         'h': 1,                     # Activation function threshold
-        'epsilon_aa': 0.1,          # Action-to-action coupling weight
-        'init_weights': np.random.normal(0.05, 0.001, (num_pc, num_actions))  # Initial weights
+        'epsilon_aa': 1,          # Action-to-action coupling weight
+        'init_weights': np.random.normal(0.005, 0.0001, (num_pc, num_actions))  # Initial weights
     }
     
     ###################
@@ -351,7 +503,7 @@ def initialize_parameters():
     critic_params = {
         'tau_m': dt - 0.001,        # Membrane time constant (s)
         'tau_s': dt - 0.001,        # Synaptic time constant (s)
-        'nu': 0.1,                  # Value scaling factor
+        'nu': 0.99,                  # Value scaling factor
         'v0': 0.0,                  # Baseline value
         'init_weights': np.zeros((num_pc, 1))  # Initial weights
     }
@@ -361,10 +513,10 @@ def initialize_parameters():
     ###################
     reward_params = {
         'goal_reward': 1.0,     # Reward for reaching goal
-        'wall_penalty': -0.1,   # Penalty for hitting wall
+        'wall_penalty': -0.01,   # Penalty for hitting wall
         'tau_ra': 1.5,          # Fast reward time constant (s)
         'tau_rb': 1.1,          # Slow reward time constant (s)
-        'tau_r': 4              # Reward discount time (s)
+        'tau_r': 5              # Reward discount time (s)
     }
     
     ###################
@@ -483,27 +635,27 @@ def test_position_update():
     
     # Test straight movement
     pos = np.array([0., 0.])
-    new_pos, hit_wall = update_position(pos, 0, params)  # Move east
+    new_pos, hit_wall = update_position(pos, (0, np.array([1, 0])), params)  # Move east
     assert new_pos[0] > 0 and abs(new_pos[1]) < 1e-6, "Should move east"
     assert not hit_wall, "Should not hit wall in center"
     
     # Test wall collision
     pos = np.array([99., 0.])  # Very close to wall
-    new_pos, hit_wall = update_position(pos, 0, params)  # Move east
+    new_pos, hit_wall = update_position(pos, (0, np.array([1, 0])), params)  # Move east
     assert hit_wall, "Should hit wall when moving toward it"
     assert np.linalg.norm(new_pos) <= params['env']['arena_radius'], "Should not exceed arena radius"
     assert np.isclose(np.linalg.norm(new_pos), params['env']['arena_radius'], rtol=1e-5), "Should be exactly at arena radius after collision"
     
     # Test diagonal movement
     pos = np.array([0., 0.])
-    new_pos, hit_wall = update_position(pos, 45, params)  # Move northeast
+    new_pos, hit_wall = update_position(pos, (0, np.array([np.sqrt(2)/2, np.sqrt(2)/2])), params)  # Move northeast
     assert new_pos[0] > 0 and new_pos[1] > 0, "Should move northeast"
     assert abs(new_pos[0] - new_pos[1]) < 1e-6, "Should move at 45 degrees"
     
     # Test multiple steps
     pos = np.array([0., 0.])
     for _ in range(5):
-        pos, hit_wall = update_position(pos, 0, params)  # Move east repeatedly
+        pos, hit_wall = update_position(pos, (0, np.array([1, 0])), params)  # Move east repeatedly
     assert pos[0] > 0 and abs(pos[1]) < 1e-6, "Should keep moving east"
     
     print("All position update tests passed!")
