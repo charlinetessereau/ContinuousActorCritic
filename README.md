@@ -51,9 +51,9 @@ plot_learning_curve('results.h5', metric='latency', save_path='learning_curve.pn
 
 We can verify that the agent learns by looking at the average time (number of steps) that they need to reach the goal with repeated exposure to the same goal location:
 
-![Learning Curve](assets/learning_curve.png)
+![Learning Curve](assets/latency.png)
 
-We can see that it decreases, which is a proxy for learning.
+This plots shows the average latency and standard deviation (error bars) to reach the goal accros 20 independent runs. We can see that it decreases with trials, which is a proxy for learning. 
 
 3. Examine the value function:
 ```python
@@ -65,7 +65,7 @@ plot_value_comparison('results.h5', rat_idx=0, trial_idx1=19, save_path='value_f
 
 ![Value Function](assets/value_function.png)
 
-We can see that the value function after learning peaks at the reward location.
+We can see that the value function after learning peaks at the reward location. In this code, it was initialised at 0, such that all locations have a null value function before learning. 
 
 4. Compare decision-making dynamics before and after learning:
 ```python
