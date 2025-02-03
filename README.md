@@ -93,7 +93,7 @@ The videos show the different components that feed the actor dynamics: the input
 
 Early Learning             |  Late Learning
 :-------------------------:|:-------------------------:
-![Early Learning](assets/early_learning.mp4)  |  ![Late Learning](assets/late_learning.mp4)
+![Early Learning](animation_2_0.mp4)  |  ![Late Learning](assets/animation_2_19.mp4)
 
 ## Model Parameters
 
