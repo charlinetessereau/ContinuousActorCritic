@@ -119,7 +119,7 @@ def update_plot(frame_data, lines, axes):
         # Update platform position
         lines['platform'].center = platform_pos
 
-def load_trial_data(h5_file, rat_index=0, trial_index=19):
+def load_trial_data(h5_file, rat_index=1, trial_index=19):
     """Load data for a specific trial."""
     with h5py.File(h5_file, 'r') as f:
         trial_data = f[f'results/rat_{rat_index}/trial_{trial_index}']
@@ -151,7 +151,9 @@ if __name__ == '__main__':
     # Example usage as script
     fig, axes = setup_figure()
     lines = setup_lines(axes)
-    data = load_trial_data('results.h5')
+    rat_index=5
+    trial_index=0
+    data = load_trial_data('results.h5', rat_index=rat_index, trial_index=trial_index)
     
     anim = animation.FuncAnimation(
         fig, 
@@ -168,7 +170,7 @@ if __name__ == '__main__':
         blit=False
     )
     
-    anim.save('animation.mp4', writer='ffmpeg', fps=30)
+    anim.save('animation_'+str(rat_index)+'_'+str(trial_index)+'.mp4', writer='ffmpeg', fps=30)
     plt.close()
 
 # First run these lines

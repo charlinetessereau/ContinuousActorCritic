@@ -1,9 +1,9 @@
-name: actor_critic
+name: actor-critic
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
-  - python=3.9
+  - python>=3.8
   - numpy
   - scipy
   - h5py
@@ -14,3 +14,4 @@ dependencies:
   - ffmpeg
   - pip:
     - ipykernel
+  - pyyaml

@@ -1,7 +1,7 @@
 """Core functionality for data loading and processing."""
 import h5py
 import numpy as np
-from functions import calculate_place_cell_activity
+from utils import calculate_place_cell_activity
 import os
 
 def load_experiment_data(filename):
@@ -21,6 +21,10 @@ def load_experiment_data(filename):
             # Load parameters
             if 'parameters' in f:
                 param_group = f['parameters']
+                # Load top-level parameters first
+                for key, value in param_group.attrs.items():
+                    parameters[key] = value
+                # Then load category parameters
                 for category in param_group.keys():
                     parameters[category] = {}
                     for key, value in param_group[category].attrs.items():

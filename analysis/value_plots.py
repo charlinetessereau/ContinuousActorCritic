@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
-from functions import calculate_place_cell_activity
+from utils import calculate_place_cell_activity
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import pathpatch_2d_to_3d
 from analysis.core import load_experiment_data
@@ -32,7 +32,8 @@ def plot_value_comparison(filename, rat_idx=0, trial_idx1=4, trial_idx2=5, save_
     with h5py.File(filename, 'r') as f:
         rat_group = f['results'][f'rat_{rat_idx}']
         platform_pos = rat_group.attrs['platform']  # Get platform position from rat group
-        
+        if trial_idx2 == -1:
+            trial_idx2 = len(rat_group.keys()) - 1
         # Load value weights for both trials
         trial1 = rat_group[f'trial_{trial_idx1}']
         trial2 = rat_group[f'trial_{trial_idx2}']
@@ -100,7 +101,7 @@ def plot_value_comparison(filename, rat_idx=0, trial_idx1=4, trial_idx2=5, save_
     plt.suptitle(f'Value Maps - Rat {rat_idx}')
     
     if save_path:
-        plt.savefig(save_path+f'/value_comparison_{trial_idx1}_{trial_idx2}.png', 
+        plt.savefig(f'value_comparison_{trial_idx1}_{trial_idx2}.png', 
                    dpi=300, bbox_inches='tight')
         plt.close()
     else:

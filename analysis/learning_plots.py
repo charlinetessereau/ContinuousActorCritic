@@ -57,7 +57,7 @@ def plot_learning_curve(filename, metric='latency', save_path=None): # filename=
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path+f'/{metric}.png', dpi=300, bbox_inches='tight')
+        plt.savefig(f'{metric}.png', dpi=300, bbox_inches='tight')
         plt.close()
     else:
         plt.show() 

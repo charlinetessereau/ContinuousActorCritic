@@ -47,7 +47,7 @@ def plot_trajectory_comparison(filename, rat_idx=0, trial_idx1=0, trial_idx2=-1,
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path+f'/trajectory_comparison_{trial_idx1}_{trial_idx2}.png', dpi=300, bbox_inches='tight')
+        plt.savefig(f'trajectory_comparison_{trial_idx1}_{trial_idx2}.png', dpi=300, bbox_inches='tight')
         plt.close()
     else:
         plt.show()

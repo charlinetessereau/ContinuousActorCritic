@@ -1,0 +1,75 @@
+# Features
+features:
+  num_rats: 20    # Number of independent runs(called rats) in the experiment
+  num_trials: 20  # Number of trials per rat/independent runs - a trial starts with the agent being placed at one of 4 random locations and ends after 120s of runs or if the agents finds the goal. 
+
+# Dynamics Parameters
+dt: 0.1  # Time step (s)
+
+# Environment Parameters
+env:
+  arena_radius: 100    # Radius of circular arena (cm)
+  goal_radius: 5       # Radius of goal zone (cm)
+  speed: 30           # Movement speed (cm/s)
+  max_trial_time: 120  # Maximum trial duration (s)
+  reward_window: 2    # Time window for reward computation after finding goal (s)
+  # Starting positions (cm) - East, North, West, South
+  start_positions: [[95, 0], [0, 95], [-95, 0], [0, -95]]
+  # Potential platform positions (cm)
+  platform_positions: [
+    [30, 0], [0, 30], [-30, 0], [0, -30],
+    [50, 50], [-50, 50], [50, -50], [-50, -50]
+  ]
+
+# Place Cell Parameters
+pc:
+  num_cells: 500      # Number of place cells
+  sigma: 30          # Place field width (cm)
+  amplitude: 1       # Maximum firing rate (Hz)
+  epsilon_pcc: 0.1     # Place cell to critic weight
+
+# Actor Parameters
+actor:
+  num_actions: 180    # Number of action cells (one per 2 degrees)
+  tau_m: 0.15        # Membrane time constant (s)
+  tau_s: 0.3         # Synaptic time constant (s)
+  rho: 0.5           # Activation function gain
+  beta: 5            # Activation function steepness
+  h: 1               # Activation function threshold
+  epsilon_aa: 1      # Action-to-action coupling weight
+  epsilon_pca: 0.1   # Place cell to actor weight
+  # Coupled weights parameters
+  w_min: -1          # inhibition
+  w_max: 1           # excitation
+  xi_0: 1            # scale factor
+  # Initial weights parameters
+  init_weights_mean: 0.005
+  init_weights_std: 0.0001
+
+# Critic Parameters
+critic:
+  tau_m_offset: 0.001  # Membrane time constant offset from dt
+  tau_s_offset: 0.001  # Synaptic time constant offset from dt
+  nu: 0.99            # Value scaling factor
+  v0: 0.0             # Baseline value
+
+# Reward Parameters
+reward:
+  goal_reward: 1.0    # Reward for reaching goal
+  wall_penalty: -0.001 # Penalty for hitting wall
+  tau_ra: 1.5         # Fast reward time constant (s)
+  tau_rb: 1.1         # Slow reward time constant (s)
+  tau_r: 5            # Reward discount time (s)
+
+# Learning Parameters
+learning:
+  actor_lr: 0.01      # Actor learning rate
+  critic_lr: 0.1      # Critic learning rate
+
+# Noise Parameters
+noise:
+  tau: 0.3            # Noise time constant (s)
+  mu: 10              # Noise center deviation
+  sigma: 1            # Noise distribution width
+  rho: 2              # Noise amplitude
+  width: 0.3          # Noise angular width

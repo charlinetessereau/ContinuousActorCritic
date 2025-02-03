@@ -1,18 +1,19 @@
 # Continuous Actor-Critic Learning with Place Cells
 
-This repository implements a continuous actor-critic reinforcement learning model for spatial navigation using place cells. The model learns to navigate in a circular arena to find a hidden platform, similar to the Morris Water Maze task.
+This repository implements a continuous actor-critic reinforcement learning model for spatial navigation using place cells, as described in my [PhD thesis](https://eprints.nottingham.ac.uk/67019/) ([Tessereau, 2021](https://eprints.nottingham.ac.uk/67019/)). This is a rate network implementation of [Frémaux et al., 2013](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1003024). The model learns to navigate in a circular arena to find a hidden platform, similar to the Morris Water Maze task.
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ContinuousActorCritic.git
+git clone https://github.com/charlinetessereau/ContinuousActorCritic.git
 cd ContinuousActorCritic
 ```
 
-2. Install required packages:
+2. Create and activate the conda environment:
 ```bash
-pip install numpy scipy h5py matplotlib seaborn jupyter
+conda env create -f environment.yml
+conda activate actor-critic
 ```
 
 ## Project Structure
@@ -30,54 +31,91 @@ pip install numpy scipy h5py matplotlib seaborn jupyter
 
 ## Quick Start
 
-1. Run a basic experiment:
+1. Run the experiment:
 ```python
-from loop import initialize_parameters, experiment
-from analysis import plot_learning_curve
+from main import initialize_parameters, experiment
 
-# Run experiment
+# Initialize parameters and run experiment
 params = initialize_parameters()
-features = {'num_rats': 20, 'num_trials': 20}
+features = params.pop('features')  # Remove features from params dict
 experiment(params, features, 'results.h5')
-
-# Plot results
-plot_learning_curve('results.h5')
 ```
 
-2. Or use the Jupyter notebook for interactive exploration:
-```bash
-jupyter notebook README.ipynb
+2. Visualize learning through latencies:
+```python
+from analysis.learning_plots import plot_learning_curve
+
+# Plot learning curve
+plot_learning_curve('results.h5', metric='latency', save_path='learning_curve.png')
 ```
+
+We can verify that the agent learns by looking at the average time (number of steps) that they need to reach the goal with repeated exposure to the same goal location:
+
+![Learning Curve](assets/learning_curve.png)
+
+We can see that it decreases, which is a proxy for learning.
+
+3. Examine the value function:
+```python
+from analysis.value_plots import plot_value_comparison
+
+# Plot value function after learning
+plot_value_comparison('results.h5', rat_idx=0, trial_idx1=19, save_path='value_function.png')
+```
+
+![Value Function](assets/value_function.png)
+
+We can see that the value function after learning peaks at the reward location.
+
+4. Compare decision-making dynamics before and after learning:
+```python
+from analysis.visualize import setup_figure, setup_lines, load_trial_data
+import matplotlib.animation as animation
+
+# Setup visualization
+fig, axes = setup_figure()
+lines = setup_lines(axes)
+
+# Generate early learning video
+data = load_trial_data('results.h5', rat_index=0, trial_index=0)
+anim = animation.FuncAnimation(fig, update_plot, frames=len(data['history_ua']), 
+                             fargs=(data, lines, axes), interval=50)
+anim.save('early_learning.mp4', writer='ffmpeg', fps=30)
+
+# Generate late learning video
+data = load_trial_data('results.h5', rat_index=0, trial_index=19)
+anim = animation.FuncAnimation(fig, update_plot, frames=len(data['history_ua']), 
+                             fargs=(data, lines, axes), interval=50)
+anim.save('late_learning.mp4', writer='ffmpeg', fps=30)
+```
+
+The videos show the different components that feed the actor dynamics: the input from the place cells (learned) and the noise input (varying with the degree of learning). The vertical bar shows the residual decision on direction.
 
 ## Model Parameters
 
-The model's parameters are organized in categories:
+The model's parameters can be adjusted in `params.yaml`. Key parameters include:
 
-### Environment
-- Arena radius: 100 cm
-- Goal radius: 5 cm
-- Movement speed: 30 cm/s
-- Trial duration: 120 s
+- **Environment**:
+  - Arena radius: 100 cm
+  - Goal radius: 5 cm
+  - Movement speed: 30 cm/s
+  - Trial duration: 120 s
 
-### Place Cells
-- Number: 500
-- Field width: 30 cm
-- Maximum firing rate: 1 Hz
+- **Place Cells**:
+  - Number of cells: 500
+  - Field width (σ): 30 cm
+  - Maximum firing rate: 1 Hz
 
-### Actor Network
-- Action cells: 180 (2° resolution)
-- Learning rate: 0.01
-- Noise parameters for exploration
+- **Actor Network**:
+  - Action cells: 180 (one per 2 degrees)
+  - Learning rate: 0.01
+  - Noise decay time: 0.3 s
 
-### Critic Network
-- Learning rate: 0.1
-- Value scaling: 0.1
-- Temporal discount: 4 s
+- **Critic Network**:
+  - Learning rate: 0.1
+  - Value scaling: 0.99
 
-### Reward
-- Goal reward: 1.0
-- Wall penalty: -0.1
-- Reward time constants: 1.5s, 1.1s
+Feel free to experiment with different values to explore their impact on learning dynamics.
 
 ## Results
 
@@ -93,4 +131,10 @@ Feel free to open issues or submit pull requests. Areas for improvement include:
 - Additional analysis tools
 - Parameter optimization
 - Performance improvements
-- Documentation enhancements 
+- Documentation enhancements
+
+## References
+
+1. Tessereau, Charline. "Reinforcement Learning Approaches to Rapid Hippocampal Place Learning." Diss. University of Nottingham, 2021.
+
+2. Frémaux, Nicolas, Henning Sprekeler, and Wulfram Gerstner. "Reinforcement learning using a continuous time actor-critic framework with spiking neurons." PLoS computational biology 9.4 (2013): e1003024. 
