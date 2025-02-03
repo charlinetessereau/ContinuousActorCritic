@@ -91,6 +91,10 @@ anim.save('late_learning.mp4', writer='ffmpeg', fps=30)
 
 The videos show the different components that feed the actor dynamics: the input from the place cells (learned) and the noise input (varying with the degree of learning). The vertical bar shows the residual decision on direction.
 
+Early Learning             |  Late Learning
+:-------------------------:|:-------------------------:
+![Early Learning](assets/early_learning.mp4)  |  ![Late Learning](assets/late_learning.mp4)
+
 ## Model Parameters
 
 The model's parameters can be adjusted in `params.yaml`. Key parameters include:
