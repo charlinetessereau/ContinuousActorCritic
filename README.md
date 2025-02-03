@@ -24,7 +24,7 @@ conda activate actor-critic
 
 ## Project Structure
 
-- `loop.py`: Core implementation of the actor-critic model
+- `main.py`: Core implementation of the actor-critic model
   - Place cell encoding
   - Actor network for action selection
   - Critic network for value estimation
