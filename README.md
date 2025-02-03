@@ -52,7 +52,7 @@ experiment(params, features, 'results.h5')
 from analysis.learning_plots import plot_learning_curve
 
 # Plot learning curve
-plot_learning_curve('results.h5', metric='latency', save_path='learning_curve.png')
+plot_learning_curve('results.h5', metric='latency', save_path=True)
 ```
 
 We can verify that the agent learns by looking at the average time (number of steps) that they need to reach the goal with repeated exposure to the same goal location:
@@ -66,7 +66,7 @@ This plots shows the average latency and standard deviation (error bars) to reac
 from analysis.value_plots import plot_value_comparison
 
 # Plot value function after learning
-plot_value_comparison('results.h5', rat_idx=0, trial_idx1=19, save_path='value_function.png')
+plot_value_comparison('results.h5', rat_idx=0, trial_idx1=19, save_path=True)
 ```
 
 <img src="assets/value_function.png" width="400">
