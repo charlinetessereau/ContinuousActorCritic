@@ -51,7 +51,7 @@ plot_learning_curve('results.h5', metric='latency', save_path='learning_curve.pn
 
 We can verify that the agent learns by looking at the average time (number of steps) that they need to reach the goal with repeated exposure to the same goal location:
 
-<img src="assets/learning_curve.png" width="400">
+<img src="assets/latency.png" width="400">
 
 This plots shows the average latency and standard deviation (error bars) to reach the goal accros 20 independent runs. We can see that it decreases with trials, which is a proxy for learning. 
 
@@ -92,7 +92,7 @@ anim.save('late_learning.mp4', writer='ffmpeg', fps=30)
 The videos show the different components that feed the actor dynamics: the input from the place cells (learned) and the noise input (varying with the degree of learning). The vertical bar shows the residual decision on direction.
 
 <p align="center">
-<img src="assets/early_learning.mp4" width="300"> <img src="assets/late_learning.mp4" width="300">
+<img src="assets/animation_2_0.mp4" width="300"> <img src="assets/animation_2_19.mp4" width="300">
 </p>
 
 ## Model Parameters
