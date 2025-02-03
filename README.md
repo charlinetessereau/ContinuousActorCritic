@@ -1,6 +1,12 @@
 # Continuous Actor-Critic Learning with Place Cells
 
-This repository implements a continuous actor-critic reinforcement learning model for spatial navigation using place cells, as described in my [PhD thesis](https://eprints.nottingham.ac.uk/67019/) ([Tessereau, 2021](https://eprints.nottingham.ac.uk/67019/)). This is a rate network implementation of [Frémaux et al., 2013](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1003024). The model learns to navigate in a circular arena to find a hidden platform, similar to the Morris Water Maze task.
+This repository implements a continuous actor-critic reinforcement learning model for spatial navigation using place cells, as described in Chapter 5 of my [PhD thesis](https://eprints.nottingham.ac.uk/67019/) ([Tessereau, 2021](https://eprints.nottingham.ac.uk/67019/)). This is a rate network implementation of the spiking version in [Frémaux et al., 2013](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1003024). 
+
+The model produces an agent which learns to navigate in a circular arena to find a goal location, similar to the Morris Water Maze task. 
+
+## Brief descripton of the model: 
+The position of the agent is encoded in a layer of units mimiking hippocampal place cells. This is given as a feedforward input to a critic cell and an actor network. The former is in charge of learning the value of the locations, and the latter of learning the policy, which determines which is the best direction to choose at every position step.  
+As this is a continuous RL implementation, the critic and actor activities evolve accoridng to a second order ODE which mimics the characteristic membrane potential response to an electrical input. If you want to know more, check out the references or reach out to me! 
 
 ## Installation
 
