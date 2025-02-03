@@ -95,11 +95,17 @@ anim = animation.FuncAnimation(fig, update_plot, frames=len(data['history_ua']),
 anim.save('late_learning.mp4', writer='ffmpeg', fps=30)
 ```
 
-The videos show the different components that feed the actor dynamics: the input from the place cells (learned) and the noise input (varying with the degree of learning). The vertical bar shows the residual decision on direction.
-
 <p align="center">
-<img src="assets/early_learning.gif" width="300"> <img src="assets/late_learning.gif" width="300">
+<img src="assets/early_learning.gif" width="400"> <img src="assets/late_learning.gif" width="400">
 </p>
+
+The videos illustrates the actor dynamics (left and top right hand side in polar coordinates) and the resulting trajectory (right hand side - bottom). The lines on the left hand side plot and the polar plot show the different components that feed the actor dynamics: the input from the place cells (learned via the TD error) and the noise input (varying with the degree of learning). The vertical bar and the compass bar in the polar plot shows the residual decision on direction. At every timestep, the agent (red dot in the bottom right video) moves according to this compass. 
+
+# Key observations: 
+- Before learning, the noise level is higher, this is an exploratory noise, which leads the agent to explore its environment. After the agent finds the platform of after a limiter number of timestep, the agent is palced on the platform to mimic real experimental conditions.
+- After learning, the place cell input is stronger, as the weights have been shaped through TD error to reflect the direction which leads to locations with higher values. This leads to a more targetted trajectory towards the goal location.
+- As the dynamics are quite complex, the trajectories often can get stuck in some local limit cyles, leading to a high standard deviation accross independent runs. Hyperparameters fit would help optimise the dymanics!
+- Random exploration doesnt reflect biological conditions, and I have some ideas on how to improve exploration to make it more biologically realistic - reach out if you're interested in collaborating! 
 
 Note: If videos don't play directly, you can find them in the `assets` folder:
 - [Early Learning Video](assets/animation_2_0.mp4)
