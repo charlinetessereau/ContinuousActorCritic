@@ -138,11 +138,7 @@ Feel free to experiment with different values to explore their impact on learnin
 
 ## Results
 
-The model learns to:
-1. Navigate efficiently to the platform
-2. Avoid walls
-3. Develop direct trajectories to the goal
-4. Adapt to different platform locations
+The model learns to navigate efficiently to the platform.
 
 ## Contributing
 
