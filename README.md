@@ -98,8 +98,17 @@ anim.save('late_learning.mp4', writer='ffmpeg', fps=30)
 The videos show the different components that feed the actor dynamics: the input from the place cells (learned) and the noise input (varying with the degree of learning). The vertical bar shows the residual decision on direction.
 
 <p align="center">
-<img src="assets/animation_2_0.mp4" width="300"> <img src="assets/animation_2_19.mp4" width="300">
+  <video width="300" controls>
+    <source src="assets/animation_2_0.mp4" type="video/mp4">
+  </video>
+  <video width="300" controls>
+    <source src="assets/animation_2_19.mp4" type="video/mp4">
+  </video>
 </p>
+
+Note: If videos don't play directly, you can find them in the `assets` folder:
+- [Early Learning Video](assets/animation_2_0.mp4)
+- [Late Learning Video](assets/animation_2_19.mp4)
 
 ## Model Parameters
 
