@@ -7,4 +7,4 @@ plot_learning_curve('results.h5', metric='latency', save_path=True)
 
 # Or for complete analysis
 from analysis.main import analyze_experiment
-analyze_experiment("experiment.h5", output_dir="results") 
+analyze_experiment("results.h5", output_dir="results") 
