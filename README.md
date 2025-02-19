@@ -16,10 +16,17 @@ git clone https://github.com/charlinetessereau/ContinuousActorCritic.git
 cd ContinuousActorCritic
 ```
 
-2. Create and activate the conda environment:
+2. Either create and activate the conda environment:
 ```bash
 conda env create -f environment.yml
 conda activate actor-critic
+```
+3. Or, create a venv environment:
+
+```bash
+python -m venv .env
+source .env/bin/activate
+pip install -r requirements.txt
 ```
 
 ## Project Structure
